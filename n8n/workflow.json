@@ -1,0 +1,627 @@
+{
+  "name": "Lead Ingestion and Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "leads",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "e44537bb-5896-48ee-a1e6-05452d3a0491",
+      "name": "Receive Lead Submission",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "91a5e186-d3a9-4de7-91a5-8e8e3a3e6a4b",
+      "credentials": {
+        "webhookHeaderAuth": {
+          "id": "1",
+          "name": "Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "name",
+              "value": "={{ $json.body.name }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.body.email }}"
+            },
+            {
+              "name": "original_message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $json.body.email.split('@')[1] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b3e2b260-8f35-43a0-802c-569d3ec6fb9a",
+      "name": "Parse Email Domain",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.apollo.io/v1/organizations/enrich",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $env.APOLLO_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "010373ab-bc51-4e2b-b6c2-404fb8556a31",
+      "name": "Apollo Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        650,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "company_name",
+              "value": "={{ $json.organization?.name ?? 'Unknown' }}"
+            },
+            {
+              "name": "industry",
+              "value": "={{ $json.organization?.industry ?? null }}"
+            },
+            {
+              "name": "estimated_revenue",
+              "value": "={{ $json.organization?.annual_revenue_printed ?? null }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "employee_count",
+              "value": "={{ $json.organization?.estimated_num_employees ?? null }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b6ff8f7-7b25-4c07-b353-8b77626359f4",
+      "name": "Normalize Enrichment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a Senior SaaS Account Executive analyzing inbound demo requests.\\nGiven the prospect's message and their company profile, assign a purchase\\nintent score from 1-100.\\n\\nScoring Guide:\\n- 90-100: Enterprise buyer, high headcount, explicit urgency, budget signals\\n- 70-89:  Mid-market, clear use case, decision-maker language\\n- 50-69:  Exploratory interest, small-mid company, vague requirements\\n- 30-49:  Likely tire-kicker, personal email, no clear business need\\n- 1-29:   Spam, off-topic, competitor research, student project\\n\\nPROSPECT MESSAGE: {{ $json.original_message }}\\n\\nCOMPANY PROFILE:\\n- Company: {{ $json.company_name }}\\n- Domain: {{ $json.company_domain }}\\n- Employees: {{ $json.employee_count ?? 'Unknown' }}\\n- Industry: {{ $json.industry ?? 'Unknown' }}\\n- Est. Revenue: {{ $json.estimated_revenue ?? 'Unknown' }}\\n\\nRespond with ONLY a valid JSON object:\\n{ \\\"intent_score\\\": <number 1-100>, \\\"reasoning_summary\\\": \\\"<max 2 sentences>\\\" }\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\",\n    \"responseSchema\": {\n      \"type\": \"OBJECT\",\n      \"properties\": {\n        \"intent_score\": { \"type\": \"INTEGER\" },\n        \"reasoning_summary\": { \"type\": \"STRING\" }\n      },\n      \"required\": [\"intent_score\", \"reasoning_summary\"]\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "gemini-intent-score",
+      "name": "Gemini Intent Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "let intent_score = 50;\nlet reasoning_summary = \"LLM output validation failed — defaulted.\";\n\ntry {\n  const responseBody = $input.item.json;\n  if (responseBody && responseBody.candidates && responseBody.candidates.length > 0) {\n    const text = responseBody.candidates[0].content.parts[0].text;\n    const parsed = JSON.parse(text);\n    \n    if (Number.isInteger(parsed.intent_score) && parsed.intent_score >= 1 && parsed.intent_score <= 100) {\n      intent_score = parsed.intent_score;\n    }\n    if (typeof parsed.reasoning_summary === 'string') {\n      reasoning_summary = parsed.reasoning_summary;\n    }\n  }\n} catch (e) {\n  // Ignore and use defaults\n}\n\nconst originalData = $(\"Normalize Enrichment\").first().json;\n\n$input.item.json = {\n  ...originalData,\n  intent_score,\n  reasoning_summary\n};\n\nreturn $input.item;"
+      },
+      "id": "validate-llm-output",
+      "name": "Validate LLM Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "number",
+        "value1": "={{ $json.intent_score }}",
+        "rules": {
+          "rules": [
+            {
+              "operation": "larger",
+              "value2": 80
+            },
+            {
+              "operation": "smallerEqual",
+              "value2": 80
+            }
+          ]
+        }
+      },
+      "id": "switch-node",
+      "name": "Route by Intent Score",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DISCORD_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"embeds\": [{\n    \"title\": \"🔥 Hot Lead Alert — Score: {{ $json.intent_score }}\",\n    \"color\": 16007990,\n    \"fields\": [\n      { \"name\": \"Name\", \"value\": \"{{ $json.name }}\", \"inline\": true },\n      { \"name\": \"Email\", \"value\": \"{{ $json.email }}\", \"inline\": true },\n      { \"name\": \"Company\", \"value\": \"{{ $json.company_name }}\", \"inline\": true },\n      { \"name\": \"Employees\", \"value\": \"{{ $json.employee_count }}\", \"inline\": true },\n      { \"name\": \"Industry\", \"value\": \"{{ $json.industry }}\", \"inline\": true },\n      { \"name\": \"Revenue\", \"value\": \"{{ $json.estimated_revenue }}\", \"inline\": true },\n      { \"name\": \"AI Reasoning\", \"value\": \"{{ $json.reasoning_summary }}\" }\n    ]\n  }]\n}",
+        "options": {}
+      },
+      "id": "discord-alert",
+      "name": "Discord Alert — Hot Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1650,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "subject": "Thanks for your interest in LeadIntel!",
+        "message": "Hi {{ $json.name }},<br><br>Thanks for your interest in LeadIntel!<br><br>While we review your request, feel free to check out our <a href=\"#\">documentation</a>.<br><br>We recommend starting with our Starter or Pro tiers to get a feel for the platform. If your needs change or you'd like to schedule a follow-up, just reply to this email!<br><br>Best,<br>The LeadIntel Team",
+        "toList": [
+          "={{ $json.email }}"
+        ],
+        "additionalFields": {}
+      },
+      "id": "gmail-auto-reply",
+      "name": "Gmail — Warm Auto-Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        450
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2",
+          "name": "Gmail Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-paths",
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "={{ $json.intent_score > 80 ? 'Hot Lead' : ($json.intent_score >= 50 ? 'Warm' : 'Cold') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-status",
+      "name": "Set Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "insert",
+        "table": "leads",
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "employee_count",
+              "value": "={{ $json.employee_count }}"
+            },
+            {
+              "name": "industry",
+              "value": "={{ $json.industry }}"
+            },
+            {
+              "name": "estimated_revenue",
+              "value": "={{ $json.estimated_revenue }}"
+            },
+            {
+              "name": "original_message",
+              "value": "={{ $json.original_message }}"
+            },
+            {
+              "name": "intent_score",
+              "value": "={{ $json.intent_score }}"
+            },
+            {
+              "name": "reasoning_summary",
+              "value": "={{ $json.reasoning_summary }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.status }}"
+            }
+          ]
+        }
+      },
+      "id": "supabase-upsert",
+      "name": "Upsert Lead to Database",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "route-by-intent",
+      "name": "Route by Intent Score",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.intent_score }}",
+              "operation": "larger",
+              "value2": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "discord-alert",
+      "name": "Discord Alert — Hot Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1650,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DISCORD_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"embeds\": [{\n    \"title\": \"🔥 Hot Lead Alert — Score: {{ $json.intent_score }}\",\n    \"color\": 16007990,\n    \"fields\": [\n      { \"name\": \"Name\", \"value\": \"{{ $json.name }}\", \"inline\": true },\n      { \"name\": \"Email\", \"value\": \"{{ $json.email }}\", \"inline\": true },\n      { \"name\": \"Company\", \"value\": \"{{ $json.company_name }}\", \"inline\": true },\n      { \"name\": \"Employees\", \"value\": \"{{ $json.employee_count }}\", \"inline\": true },\n      { \"name\": \"Industry\", \"value\": \"{{ $json.industry }}\", \"inline\": true },\n      { \"name\": \"Revenue\", \"value\": \"{{ $json.estimated_revenue }}\", \"inline\": true },\n      { \"name\": \"AI Reasoning\", \"value\": \"{{ $json.reasoning_summary }}\" }\n    ]\n  }]\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "gmail-auto-reply",
+      "name": "Gmail — Warm Auto-Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        400
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.email }}",
+        "subject": "Thanks for your interest in SaaS Lead Intelligence!",
+        "message": "Hi {{ $json.name }},<br><br>Thanks for your interest. Check out our <a href=\"#\">Self-serve Docs</a> or explore our Starter and Pro tiers. If your needs change, feel free to reply to schedule a follow-up.<br><br>Best,<br>The Team"
+      }
+    },
+    {
+      "id": "merge-paths",
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "set-status",
+      "name": "Set Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2050,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const score = $input.item.json.intent_score || 50;\nlet status = \"Cold\";\nif (score > 80) status = \"Hot Lead\";\nelse if (score >= 50) status = \"Warm\";\n$input.item.json.status = status;\nreturn $input.item;"
+      }
+    },
+    {
+      "id": "supabase-insert",
+      "name": "Upsert Lead to Database",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        300
+      ],
+      "parameters": {
+        "operation": "insert",
+        "table": "leads",
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "employee_count",
+              "value": "={{ $json.employee_count }}"
+            },
+            {
+              "name": "industry",
+              "value": "={{ $json.industry }}"
+            },
+            {
+              "name": "estimated_revenue",
+              "value": "={{ $json.estimated_revenue }}"
+            },
+            {
+              "name": "original_message",
+              "value": "={{ $json.original_message }}"
+            },
+            {
+              "name": "intent_score",
+              "value": "={{ $json.intent_score }}"
+            },
+            {
+              "name": "reasoning_summary",
+              "value": "={{ $json.reasoning_summary }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.status }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Lead Submission": {
+      "main": [
+        [
+          {
+            "node": "Parse Email Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email Domain": {
+      "main": [
+        [
+          {
+            "node": "Apollo Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Normalize Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Gemini Intent Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Intent Score": {
+      "main": [
+        [
+          {
+            "node": "Validate LLM Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate LLM Output": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent Score": {
+      "main": [
+        [
+          {
+            "node": "Discord Alert — Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail — Warm Auto-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord Alert — Hot Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Warm Auto-Reply": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [
+          {
+            "node": "Set Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status": {
+      "main": [
+        [
+          {
+            "node": "Upsert Lead to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f7d4e339-3a31-4a17-ba50-13f563d4ff20",
+  "id": "1",
+  "meta": {
+    "instanceId": "651630c1e0fc4a2b97c02c0b43534b159f8c6eb6675034c568edaa108174f886"
+  },
+  "tags": []
+}
