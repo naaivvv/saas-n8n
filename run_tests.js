@@ -36,7 +36,7 @@ const testLeads = [
 
 async function submitLead(lead) {
   try {
-    const response = await fetch('http://localhost:3000/api/leads', {
+    const response = await fetch('http://localhost:5678/webhook/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(lead)

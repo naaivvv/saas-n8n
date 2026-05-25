@@ -18,7 +18,7 @@
     * An HTTP Request node routes the domain to the **Apollo.io API** to pull critical purchasing indicators: company headcount, vertical/industry, and estimated annual ARR.
 
 ### Phase 3: AI Intent Scoring (The Brain)
-* **LLM Integration:** An n8n Advanced AI Node connects via API key to **Google Gemini (Gemini 1.5 Flash)** to maximize speed and token efficiency within the free usage tier.
+* **LLM Integration:** An n8n Advanced AI Node connects via API key to **Google Gemini (Gemini 2.5 Flash)** to maximize speed and token efficiency within the free usage tier.
 * **System Prompt Engineering:** Gemini is configured with a strict persona as a *Senior SaaS Account Executive*. It analyzes the text query against the quantitative corporate profile retrieved from Apollo.io.
 * **Structured Output Validation:** The model is constrained to reply exclusively in a valid minified JSON block matching this exact TypeScript interface:
     ```json

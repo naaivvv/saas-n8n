@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 import LeadTable from "./components/LeadTable";
+import TestLeadForm from "./components/TestLeadForm";
 
 export const dynamic = 'force-dynamic';
 
@@ -35,8 +36,8 @@ export default async function DashboardPage() {
     <div className="min-h-screen p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Lead Intelligence</h1>
-          <p className="text-neutral">Manage and analyze your inbound pipeline</p>
+          <h1 className="text-3xl font-bold text-white mb-2">AeroLead Command</h1>
+          <p className="text-neutral">Real-time intent telemetry and algorithmic lead routing</p>
         </div>
         <form action="/auth/signout" method="post">
           <button className="text-sm font-medium bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors border border-white/10 text-white">
@@ -60,6 +61,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      <TestLeadForm />
       <LeadTable initialLeads={validLeads} />
     </div>
   );

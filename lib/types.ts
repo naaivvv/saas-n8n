@@ -10,6 +10,9 @@ export interface Lead {
   estimated_revenue: string | null;
   original_message: string | null;
   intent_score: number;
+  icp_fit_score: number;
+  text_intent_score: number;
+  final_score: number;
   reasoning_summary: string | null;
   status: string;
 }

@@ -250,7 +250,7 @@ TASK: Add Gemini-based intent scoring to the n8n workflow.
 Add these nodes after the Apollo enrichment:
 
 1. **HTTP Request Node** ("Gemini Intent Score"):
-   - URL: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}
+   - URL: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}
    - Method: POST
    - Body (JSON):
      ```json

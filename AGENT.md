@@ -75,7 +75,7 @@
 | Workflow Hosting | **Railway** or **Render** | Persistent container hosting | Free tier |
 | Database | **Supabase** (PostgreSQL) | Lead storage, dashboard queries | Free (500 MB) |
 | B2B Enrichment API | **Apollo.io** | Company firmographics lookup | Free tier |
-| LLM / AI Scoring | **Google Gemini 1.5 Flash** | Intent scoring via API | Free tier |
+| LLM / AI Scoring | **Google Gemini 2.5 Flash** | Intent scoring via API | Free tier |
 | Sales Alerts | **Telegram** (bot) or **Slack** | Real-time high-intent notifications | Free |
 | Email Fallback | **Gmail** (OAuth2 via n8n) | Auto-reply for low-intent leads | Free |
 

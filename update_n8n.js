@@ -33,7 +33,7 @@ const telegramNode = {
     url: "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
     sendBody: true,
     specifyBody: "json",
-    jsonBody: "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"🔥 *Hot Lead Alert* — Score: {{ $json.intent_score }}\\n\\n*Name:* {{ $json.name }}\\n*Email:* {{ $json.email }}\\n*Company:* {{ $json.company_name }}\\n*Employees:* {{ $json.employee_count }}\\n*Industry:* {{ $json.industry }}\\n*Revenue:* {{ $json.estimated_revenue }}\\n\\n*AI Reasoning:* {{ $json.reasoning_summary }}\",\n  \"parse_mode\": \"Markdown\"\n}",
+    jsonBody: "={{ JSON.stringify({\n  chat_id: $env.TELEGRAM_CHAT_ID,\n  text: \"🔥 *Hot Lead Alert* — Score: \" + ($json.intent_score ?? $json.final_score ?? \"\") + \"\\n\\n*Name:* \" + ($json.name ?? \"\") + \"\\n*Email:* \" + ($json.email ?? \"\") + \"\\n*Company:* \" + ($json.company_name || \"Unknown\") + \"\\n*Employees:* \" + ($json.employee_count || \"—\") + \"\\n*Industry:* \" + ($json.industry || \"—\") + \"\\n*Revenue:* \" + ($json.estimated_revenue || \"—\") + \"\\n\\n*AI Reasoning:* \" + ($json.reasoning_summary || \"\"),\n  parse_mode: \"Markdown\"\n}) }}",
     options: {}
   }
 };

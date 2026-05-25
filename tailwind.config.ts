@@ -13,16 +13,16 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
         primary: {
-          DEFAULT: "#4F46E5",
+          DEFAULT: "#00F3FF", // Neon Cyan
         },
         accent: {
-          DEFAULT: "#10B981",
+          DEFAULT: "#FF00FF", // Neon Magenta
         },
         danger: {
-          DEFAULT: "#F43F5E",
+          DEFAULT: "#FF3366", // Cyber Red
         },
         neutral: {
-          DEFAULT: "#6B7280", // Using gray-500 as default neutral
+          DEFAULT: "#94A3B8",
         }
       },
     },
