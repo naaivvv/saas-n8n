@@ -8,21 +8,15 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "id": "e44537bb-5896-48ee-a1e6-05452d3a0491",
+      "id": "189c9d2e-a740-45ed-8362-86431dd9730f",
       "name": "Receive Lead Submission",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        250,
-        300
+        -1280,
+        -48
       ],
-      "webhookId": "91a5e186-d3a9-4de7-91a5-8e8e3a3e6a4b",
-      "credentials": {
-        "webhookHeaderAuth": {
-          "id": "1",
-          "name": "Header Auth"
-        }
-      }
+      "webhookId": "91a5e186-d3a9-4de7-91a5-8e8e3a3e6a4b"
     },
     {
       "parameters": {
@@ -49,18 +43,17 @@
         },
         "options": {}
       },
-      "id": "b3e2b260-8f35-43a0-802c-569d3ec6fb9a",
+      "id": "505b9f3a-fa52-4da0-af66-eafbcd73d0af",
       "name": "Parse Email Domain",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        450,
-        300
+        -1072,
+        -48
       ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "https://api.apollo.io/v1/organizations/enrich",
         "sendQuery": true,
         "queryParameters": {
@@ -68,28 +61,32 @@
             {
               "name": "domain",
               "value": "={{ $json.company_domain }}"
-            },
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "name": "api_key",
+              "name": "X-Api-Key",
               "value": "={{ $env.APOLLO_API_KEY }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "010373ab-bc51-4e2b-b6c2-404fb8556a31",
+      "id": "75d9111c-3731-48b9-9650-22273c9e41e5",
       "name": "Apollo Enrichment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        650,
-        300
+        -880,
+        -48
       ],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "keepOnlySet": false,
         "values": {
           "string": [
             {
@@ -114,232 +111,61 @@
         },
         "options": {}
       },
-      "id": "2b6ff8f7-7b25-4c07-b353-8b77626359f4",
+      "id": "3d02bd4a-7250-44d5-bf07-4d102c798cfa",
       "name": "Normalize Enrichment",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [
-        850,
-        300
+        -672,
+        -48
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a Senior SaaS Account Executive analyzing inbound demo requests.\\nGiven the prospect's message and their company profile, assign a purchase\\nintent score from 1-100.\\n\\nScoring Guide:\\n- 90-100: Enterprise buyer, high headcount, explicit urgency, budget signals\\n- 70-89:  Mid-market, clear use case, decision-maker language\\n- 50-69:  Exploratory interest, small-mid company, vague requirements\\n- 30-49:  Likely tire-kicker, personal email, no clear business need\\n- 1-29:   Spam, off-topic, competitor research, student project\\n\\nPROSPECT MESSAGE: {{ $json.original_message }}\\n\\nCOMPANY PROFILE:\\n- Company: {{ $json.company_name }}\\n- Domain: {{ $json.company_domain }}\\n- Employees: {{ $json.employee_count ?? 'Unknown' }}\\n- Industry: {{ $json.industry ?? 'Unknown' }}\\n- Est. Revenue: {{ $json.estimated_revenue ?? 'Unknown' }}\\n\\nRespond with ONLY a valid JSON object:\\n{ \\\"intent_score\\\": <number 1-100>, \\\"reasoning_summary\\\": \\\"<max 2 sentences>\\\" }\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\",\n    \"responseSchema\": {\n      \"type\": \"OBJECT\",\n      \"properties\": {\n        \"intent_score\": { \"type\": \"INTEGER\" },\n        \"reasoning_summary\": { \"type\": \"STRING\" }\n      },\n      \"required\": [\"intent_score\", \"reasoning_summary\"]\n    }\n  }\n}",
         "options": {}
       },
-      "id": "gemini-intent-score",
+      "id": "2d184443-3252-4e96-b965-6a934ad529f6",
       "name": "Gemini Intent Score",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        1050,
-        300
+        -480,
+        -48
       ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "upFr1pbS4eniQ6Pg",
+          "name": "Header Auth account 2"
+        },
+        "httpQueryAuth": {
+          "id": "mbfzf7D5bPtSS9oV",
+          "name": "Query Auth account"
+        }
+      },
       "continueOnFail": true
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "let intent_score = 50;\nlet reasoning_summary = \"LLM output validation failed — defaulted.\";\n\ntry {\n  const responseBody = $input.item.json;\n  if (responseBody && responseBody.candidates && responseBody.candidates.length > 0) {\n    const text = responseBody.candidates[0].content.parts[0].text;\n    const parsed = JSON.parse(text);\n    \n    if (Number.isInteger(parsed.intent_score) && parsed.intent_score >= 1 && parsed.intent_score <= 100) {\n      intent_score = parsed.intent_score;\n    }\n    if (typeof parsed.reasoning_summary === 'string') {\n      reasoning_summary = parsed.reasoning_summary;\n    }\n  }\n} catch (e) {\n  // Ignore and use defaults\n}\n\nconst originalData = $(\"Normalize Enrichment\").first().json;\n\n$input.item.json = {\n  ...originalData,\n  intent_score,\n  reasoning_summary\n};\n\nreturn $input.item;"
+        "jsCode": "let intent_score = 50;\nlet reasoning_summary = \"LLM output validation failed — defaulted.\";\n\ntry {\n  const responseBody = $input.item.json;\n  if (responseBody && responseBody.candidates && responseBody.candidates.length > 0) {\n    const text = responseBody.candidates[0].content.parts[0].text;\n    const parsed = JSON.parse(text);\n    \n    if (Number.isInteger(parsed.intent_score) && parsed.intent_score >= 1 && parsed.intent_score <= 100) {\n      intent_score = parsed.intent_score;\n    }\n    if (typeof parsed.reasoning_summary === 'string') {\n      reasoning_summary = parsed.reasoning_summary;\n    }\n  }\n} catch (e) {\n  // Ignore and use defaults\n}\n\n// 1. Get the enriched company data from the Normalize node\nconst companyData = $(\"Normalize Enrichment\").first().json;\n\n// 2. Get the original user info that was \"lost\" before the HTTP requests\nconst leadData = $(\"Parse Email Domain\").first().json;\n\n// 3. Combine everything into a single, clean JSON object for the rest of the workflow\n$input.item.json = {\n  name: leadData.name,\n  email: leadData.email,\n  original_message: leadData.original_message,\n  company_domain: leadData.company_domain,\n  company_name: companyData.company_name,\n  industry: companyData.industry,\n  employee_count: companyData.employee_count,\n  estimated_revenue: companyData.estimated_revenue,\n  intent_score: intent_score,\n  reasoning_summary: reasoning_summary\n};\n\nreturn $input.item;"
       },
-      "id": "validate-llm-output",
+      "id": "d1dc3b72-af34-414a-b40a-21168e7096a1",
       "name": "Validate LLM Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1250,
-        300
+        -272,
+        -48
       ]
     },
     {
-      "parameters": {
-        "dataType": "number",
-        "value1": "={{ $json.intent_score }}",
-        "rules": {
-          "rules": [
-            {
-              "operation": "larger",
-              "value2": 80
-            },
-            {
-              "operation": "smallerEqual",
-              "value2": 80
-            }
-          ]
-        }
-      },
-      "id": "switch-node",
-      "name": "Route by Intent Score",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 1,
-      "position": [
-        1450,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"🔥 *Hot Lead Alert* — Score: {{ $json.intent_score }}\\n\\n*Name:* {{ $json.name }}\\n*Email:* {{ $json.email }}\\n*Company:* {{ $json.company_name }}\\n*Employees:* {{ $json.employee_count }}\\n*Industry:* {{ $json.industry }}\\n*Revenue:* {{ $json.estimated_revenue }}\\n\\n*AI Reasoning:* {{ $json.reasoning_summary }}\",\n  \"parse_mode\": \"Markdown\"\n}",
-        "options": {}
-      },
-      "id": "telegram-alert",
-      "name": "Telegram Alert — Hot Lead",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [
-        1650,
-        150
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "message",
-        "operation": "send",
-        "subject": "Thanks for your interest in LeadIntel!",
-        "message": "Hi {{ $json.name }},<br><br>Thanks for your interest in LeadIntel!<br><br>While we review your request, feel free to check out our <a href=\"#\">documentation</a>.<br><br>We recommend starting with our Starter or Pro tiers to get a feel for the platform. If your needs change or you'd like to schedule a follow-up, just reply to this email!<br><br>Best,<br>The LeadIntel Team",
-        "toList": [
-          "={{ $json.email }}"
-        ],
-        "additionalFields": {}
-      },
-      "id": "gmail-auto-reply",
-      "name": "Gmail — Warm Auto-Reply",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [
-        1650,
-        450
-      ],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "2",
-          "name": "Gmail Auth"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "mode": "append"
-      },
-      "id": "merge-paths",
-      "name": "Merge Paths",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        1850,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "keepOnlySet": false,
-        "values": {
-          "string": [
-            {
-              "name": "status",
-              "value": "={{ $json.intent_score > 80 ? 'Hot Lead' : ($json.intent_score >= 50 ? 'Warm' : 'Cold') }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "set-status",
-      "name": "Set Status",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 1,
-      "position": [
-        2050,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "database",
-        "operation": "insert",
-        "table": "leads",
-        "dataMode": "defineBelow",
-        "valuesToSend": {
-          "values": [
-            {
-              "name": "name",
-              "value": "={{ $json.name }}"
-            },
-            {
-              "name": "email",
-              "value": "={{ $json.email }}"
-            },
-            {
-              "name": "company_name",
-              "value": "={{ $json.company_name }}"
-            },
-            {
-              "name": "company_domain",
-              "value": "={{ $json.company_domain }}"
-            },
-            {
-              "name": "employee_count",
-              "value": "={{ $json.employee_count }}"
-            },
-            {
-              "name": "industry",
-              "value": "={{ $json.industry }}"
-            },
-            {
-              "name": "estimated_revenue",
-              "value": "={{ $json.estimated_revenue }}"
-            },
-            {
-              "name": "original_message",
-              "value": "={{ $json.original_message }}"
-            },
-            {
-              "name": "intent_score",
-              "value": "={{ $json.intent_score }}"
-            },
-            {
-              "name": "reasoning_summary",
-              "value": "={{ $json.reasoning_summary }}"
-            },
-            {
-              "name": "status",
-              "value": "={{ $json.status }}"
-            }
-          ]
-        }
-      },
-      "id": "supabase-upsert",
-      "name": "Upsert Lead to Database",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        2250,
-        300
-      ],
-      "credentials": {
-        "supabaseApi": {
-          "id": "3",
-          "name": "Supabase account"
-        }
-      }
-    },
-    {
-      "id": "route-by-intent",
-      "name": "Route by Intent Score",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        1450,
-        300
-      ],
       "parameters": {
         "conditions": {
           "number": [
@@ -350,17 +176,17 @@
             }
           ]
         }
-      }
+      },
+      "id": "9e6e7d25-9eb5-43f5-9972-0531a31a6312",
+      "name": "Route by Intent Score",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -48
+      ]
     },
     {
-      "id": "telegram-alert",
-      "name": "Telegram Alert — Hot Lead",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [
-        1650,
-        200
-      ],
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
@@ -368,122 +194,74 @@
         "specifyBody": "json",
         "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"🔥 *Hot Lead Alert* — Score: {{ $json.intent_score }}\\n\\n*Name:* {{ $json.name }}\\n*Email:* {{ $json.email }}\\n*Company:* {{ $json.company_name }}\\n*Employees:* {{ $json.employee_count }}\\n*Industry:* {{ $json.industry }}\\n*Revenue:* {{ $json.estimated_revenue }}\\n\\n*AI Reasoning:* {{ $json.reasoning_summary }}\",\n  \"parse_mode\": \"Markdown\"\n}",
         "options": {}
-      }
+      },
+      "id": "bab39ae3-d099-4125-bd76-7799d086f033",
+      "name": "Telegram Alert — Hot Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        128,
+        -144
+      ]
     },
     {
-      "id": "gmail-auto-reply",
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "Thanks for your interest in SaaS Lead Intelligence!",
+        "message": "Hi {{ $json.name }},<br><br>Thanks for your interest. Check out our <a href=\"#\">Self-serve Docs</a> or explore our Starter and Pro tiers. If your needs change, feel free to reply to schedule a follow-up.<br><br>Best,<br>The Team",
+        "options": {}
+      },
+      "id": "2092eef1-7a07-458e-845b-e97fa8b23250",
       "name": "Gmail — Warm Auto-Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
       "position": [
-        1650,
-        400
+        128,
+        64
       ],
-      "parameters": {
-        "resource": "message",
-        "operation": "send",
-        "sendTo": "={{ $json.email }}",
-        "subject": "Thanks for your interest in SaaS Lead Intelligence!",
-        "message": "Hi {{ $json.name }},<br><br>Thanks for your interest. Check out our <a href=\"#\">Self-serve Docs</a> or explore our Starter and Pro tiers. If your needs change, feel free to reply to schedule a follow-up.<br><br>Best,<br>The Team"
+      "webhookId": "fca39458-bbc9-4e51-8e3c-2af13483172c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "H9wmuBRqVkCi7hB6",
+          "name": "Gmail account"
+        }
       }
     },
     {
-      "id": "merge-paths",
-      "name": "Merge Paths",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        1850,
-        300
-      ],
       "parameters": {
-        "mode": "append"
-      }
-    },
-    {
-      "id": "set-status",
+        "mode": "runOnceForEachItem",
+        "jsCode": "const score = $input.item.json.intent_score || 50;\nlet status = \"Cold\";\nif (score > 80) status = \"Hot Lead\";\nelse if (score >= 50) status = \"Warm\";\n$input.item.json.status = status;\nreturn $input.item;"
+      },
+      "id": "fe83e63b-c2c7-406a-995d-509ffbe320cb",
       "name": "Set Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2050,
-        300
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const score = $input.item.json.intent_score || 50;\nlet status = \"Cold\";\nif (score > 80) status = \"Hot Lead\";\nelse if (score >= 50) status = \"Warm\";\n$input.item.json.status = status;\nreturn $input.item;"
-      }
+        352,
+        -48
+      ]
     },
     {
-      "id": "supabase-insert",
+      "parameters": {
+        "tableId": "leads"
+      },
+      "id": "df3eef10-b5e2-4f7d-9236-08a6bce72a19",
       "name": "Upsert Lead to Database",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2250,
-        300
+        560,
+        -48
       ],
-      "parameters": {
-        "operation": "insert",
-        "table": "leads",
-        "dataMode": "defineBelow",
-        "valuesToSend": {
-          "values": [
-            {
-              "name": "name",
-              "value": "={{ $json.name }}"
-            },
-            {
-              "name": "email",
-              "value": "={{ $json.email }}"
-            },
-            {
-              "name": "company_name",
-              "value": "={{ $json.company_name }}"
-            },
-            {
-              "name": "company_domain",
-              "value": "={{ $json.company_domain }}"
-            },
-            {
-              "name": "employee_count",
-              "value": "={{ $json.employee_count }}"
-            },
-            {
-              "name": "industry",
-              "value": "={{ $json.industry }}"
-            },
-            {
-              "name": "estimated_revenue",
-              "value": "={{ $json.estimated_revenue }}"
-            },
-            {
-              "name": "original_message",
-              "value": "={{ $json.original_message }}"
-            },
-            {
-              "name": "intent_score",
-              "value": "={{ $json.intent_score }}"
-            },
-            {
-              "name": "reasoning_summary",
-              "value": "={{ $json.reasoning_summary }}"
-            },
-            {
-              "name": "status",
-              "value": "={{ $json.status }}"
-            }
-          ]
-        }
-      },
       "credentials": {
         "supabaseApi": {
-          "id": "1",
-          "name": "Supabase account"
+          "id": "PVlg9erhmoThaxaX",
+          "name": "Supabase account 2"
         }
       }
     }
   ],
+  "pinData": {},
   "connections": {
     "Receive Lead Submission": {
       "main": [
@@ -573,7 +351,7 @@
       "main": [
         [
           {
-            "node": "Merge Paths",
+            "node": "Set Status",
             "type": "main",
             "index": 0
           }
@@ -581,17 +359,6 @@
       ]
     },
     "Gmail — Warm Auto-Reply": {
-      "main": [
-        [
-          {
-            "node": "Merge Paths",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge Paths": {
       "main": [
         [
           {
@@ -614,14 +381,16 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   },
-  "versionId": "f7d4e339-3a31-4a17-ba50-13f563d4ff20",
-  "id": "1",
+  "versionId": "23a213d6-e2bf-4636-bb8e-be5f35caab96",
   "meta": {
-    "instanceId": "651630c1e0fc4a2b97c02c0b43534b159f8c6eb6675034c568edaa108174f886"
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fff1baed77cacbc3734c42ec77ac3f2522f1077cc47fd0a311a32303d57d748c"
   },
+  "id": "0paSh37mIY7nPGWp",
   "tags": []
 }
