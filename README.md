@@ -67,7 +67,7 @@ Create a `.env` (local) or configure Vercel/n8n with the following variables:
 ```env
 # Next.js Application Client Keys
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=https://your-project-anon-key.supabase.co
 
 # n8n Pipeline Integration & Security
 N8N_WEBHOOK_URL=https://your-n8n-instance.railway.app/webhook/leads
