@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SaaS Lead Intelligence Pipeline
 
-## Getting Started
+A high-conversion SaaS landing page coupled with an autonomous AI-driven lead routing pipeline.
 
-First, run the development server:
+## Overview
+This project captures inbound leads through a modern, glassmorphic Next.js frontend, pushes them to an n8n webhook, enriches the lead data with Apollo, scores the intent using Google's Gemini AI, and automatically routes the lead. High-intent enterprise buyers get sent to a dedicated Telegram bot for immediate sales engagement, while low-intent leads receive an automated polite rejection or self-serve documentation link via Gmail. All lead data is persisted to a Supabase PostgreSQL database and surfaced in a protected admin dashboard.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Architecture
+
+```mermaid
+graph TD
+    A[Next.js Landing Page] -->|Form Submit| B(Next.js API Route)
+    B -->|Rate Limited POST| C{n8n Webhook}
+    
+    C --> D[Email Domain Extraction]
+    D --> E[Apollo Enrichment API]
+    E --> F[Gemini AI Intent Scoring]
+    
+    F --> G{Score > 80?}
+    
+    G -- Yes --> H[Telegram Bot: Hot Lead Alert]
+    G -- No --> I[Gmail: Automated Warm Reply]
+    
+    H --> J[Supabase Insert]
+    I --> J
+    
+    J --> K[Next.js Admin Dashboard]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup Instructions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Supabase (Database & Auth)
+1. Create a new Supabase project.
+2. Run the SQL migration found in `supabase/migrations/001_create_leads_table.sql` in the SQL Editor.
+3. Retrieve your `Project URL` and `anon public` key from Settings > API.
+4. Set up an Auth provider (e.g., Email with secure passwords).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. n8n (Orchestration)
+1. Deploy n8n (e.g., self-hosted via Docker, Render, or Railway).
+2. Import the `n8n/workflow.json` file.
+3. Configure your credentials within n8n:
+   - Supabase connection
+   - Gmail OAuth or App Passwords
+   - Apollo API Key
+   - Gemini API Key
+   - Telegram Bot Token & Chat ID
+4. Activate the workflow and copy the Production Webhook URL.
 
-## Learn More
+### 3. Vercel (Frontend Deployment)
+1. Push this repository to GitHub.
+2. Import the repository into Vercel.
+3. Set the required Environment Variables (see below).
+4. Deploy!
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
+Create a `.env` (local) or configure Vercel with the following variables:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+# Next.js Application Client Keys
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# n8n Pipeline Integration
+N8N_WEBHOOK_URL=https://your-n8n-instance.railway.app/webhook/leads
+```
 
-## Deploy on Vercel
+*Note: The backend credentials (`APOLLO_API_KEY`, `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`) are managed securely inside your n8n instance and do not need to be exposed to the Next.js frontend.*
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Screenshots
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+*(Insert screenshot of landing page here)*
+`![Landing Page Demo](./docs/landing-page.png)`
+
+*(Insert screenshot of the executive dashboard here)*
+`![Dashboard Demo](./docs/dashboard.png)`

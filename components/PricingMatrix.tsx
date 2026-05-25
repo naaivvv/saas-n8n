@@ -24,7 +24,7 @@ const tiers = [
       "Up to 5,000 leads/month",
       "Advanced Apollo enrichment",
       "Custom AI system prompts",
-      "Discord & Slack routing",
+      "Telegram & Slack routing",
       "Priority email support",
     ],
     ctaText: "Get Pro",

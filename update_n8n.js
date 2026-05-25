@@ -22,18 +22,18 @@ const switchNode = {
   }
 };
 
-const discordNode = {
-  id: "discord-alert",
-  name: "Discord Alert — Hot Lead",
+const telegramNode = {
+  id: "telegram-alert",
+  name: "Telegram Alert — Hot Lead",
   type: "n8n-nodes-base.httpRequest",
   typeVersion: 3,
   position: [ 1650, 200 ],
   parameters: {
     method: "POST",
-    url: "={{ $env.DISCORD_WEBHOOK_URL }}",
+    url: "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
     sendBody: true,
     specifyBody: "json",
-    jsonBody: "{\n  \"embeds\": [{\n    \"title\": \"🔥 Hot Lead Alert — Score: {{ $json.intent_score }}\",\n    \"color\": 16007990,\n    \"fields\": [\n      { \"name\": \"Name\", \"value\": \"{{ $json.name }}\", \"inline\": true },\n      { \"name\": \"Email\", \"value\": \"{{ $json.email }}\", \"inline\": true },\n      { \"name\": \"Company\", \"value\": \"{{ $json.company_name }}\", \"inline\": true },\n      { \"name\": \"Employees\", \"value\": \"{{ $json.employee_count }}\", \"inline\": true },\n      { \"name\": \"Industry\", \"value\": \"{{ $json.industry }}\", \"inline\": true },\n      { \"name\": \"Revenue\", \"value\": \"{{ $json.estimated_revenue }}\", \"inline\": true },\n      { \"name\": \"AI Reasoning\", \"value\": \"{{ $json.reasoning_summary }}\" }\n    ]\n  }]\n}",
+    jsonBody: "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"🔥 *Hot Lead Alert* — Score: {{ $json.intent_score }}\\n\\n*Name:* {{ $json.name }}\\n*Email:* {{ $json.email }}\\n*Company:* {{ $json.company_name }}\\n*Employees:* {{ $json.employee_count }}\\n*Industry:* {{ $json.industry }}\\n*Revenue:* {{ $json.estimated_revenue }}\\n\\n*AI Reasoning:* {{ $json.reasoning_summary }}\",\n  \"parse_mode\": \"Markdown\"\n}",
     options: {}
   }
 };
@@ -110,7 +110,7 @@ const supabaseNode = {
   }
 };
 
-workflow.nodes.push(switchNode, discordNode, gmailNode, mergeNode, setStatusNode, supabaseNode);
+workflow.nodes.push(switchNode, telegramNode, gmailNode, mergeNode, setStatusNode, supabaseNode);
 
 workflow.connections["Validate LLM Output"] = {
   main: [
@@ -128,7 +128,7 @@ workflow.connections["Route by Intent Score"] = {
   main: [
     [
       {
-        node: "Discord Alert — Hot Lead",
+        node: "Telegram Alert — Hot Lead",
         type: "main",
         index: 0
       }
@@ -143,7 +143,7 @@ workflow.connections["Route by Intent Score"] = {
   ]
 };
 
-workflow.connections["Discord Alert — Hot Lead"] = {
+workflow.connections["Telegram Alert — Hot Lead"] = {
   main: [
     [
       {

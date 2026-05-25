@@ -59,11 +59,17 @@ export async function POST(request: Request) {
     }
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      if (process.env.N8N_WEBHOOK_SECRET) {
+        headers["X-Webhook-Secret"] = process.env.N8N_WEBHOOK_SECRET;
+      }
+
       const n8nResponse = await fetch(n8nWebhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(result.data),
       });
 

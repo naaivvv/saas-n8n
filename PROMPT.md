@@ -328,28 +328,18 @@ TASK: Add conditional routing and notifications to the n8n workflow.
 Add these nodes after the LLM validation node:
 
 1. **Switch Node** ("Route by Intent Score"):
-   - Condition 1 (HIGH): intent_score > 80 → "Discord Alert" path
+   - Condition 1 (HIGH): intent_score > 80 → "Telegram Alert" path
    - Condition 2 (LOW): intent_score <= 80 → "Gmail Auto-Reply" path
 
-2. **Discord Webhook Node** ("Discord Alert — Hot Lead") [HIGH path]:
-   - URL: {{ $env.DISCORD_WEBHOOK_URL }}
+2. **Telegram Bot Node** ("Telegram Alert — Hot Lead") [HIGH path]:
+   - URL: https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage
    - Method: POST
    - Embed format:
      ```json
-     {
-       "embeds": [{
-         "title": "🔥 Hot Lead Alert — Score: {{ $json.intent_score }}",
-         "color": 16007990,
-         "fields": [
-           { "name": "Name", "value": "{{ $json.name }}", "inline": true },
-           { "name": "Email", "value": "{{ $json.email }}", "inline": true },
-           { "name": "Company", "value": "{{ $json.company_name }}", "inline": true },
-           { "name": "Employees", "value": "{{ $json.employee_count }}", "inline": true },
-           { "name": "Industry", "value": "{{ $json.industry }}", "inline": true },
-           { "name": "Revenue", "value": "{{ $json.estimated_revenue }}", "inline": true },
-           { "name": "AI Reasoning", "value": "{{ $json.reasoning_summary }}" }
-         ]
-       }]
+     ={
+       "chat_id": "{{ $env.TELEGRAM_CHAT_ID }}",
+       "text": "🔥 *Hot Lead Alert* — Score: {{ $json.intent_score }}\n\n*Name:* {{ $json.name }}\n*Email:* {{ $json.email }}\n*Company:* {{ $json.company_name }}\n*Employees:* {{ $json.employee_count }}\n*Industry:* {{ $json.industry }}\n*Revenue:* {{ $json.estimated_revenue }}\n\n*AI Reasoning:* {{ $json.reasoning_summary }}",
+       "parse_mode": "Markdown"
      }
      ```
 
@@ -363,7 +353,7 @@ Add these nodes after the LLM validation node:
      - Includes a soft CTA to schedule a follow-up if needs change
 
 4. **Merge Node** ("Merge Paths"):
-   - Merge the Discord and Gmail branches back together.
+   - Merge the Telegram and Gmail branches back together.
 
 5. **Supabase Node** ("Upsert Lead to Database"):
    - Operation: Insert
@@ -380,7 +370,7 @@ Add these nodes after the LLM validation node:
 Update n8n/workflow.json.
 
 VERIFY:
-- High-intent submission → Discord alert appears in the configured channel.
+- High-intent submission → Telegram alert appears in the configured channel.
 - Low-intent submission → auto-reply email arrives at the test email.
 - ALL submissions (both paths) → row appears in Supabase with complete data.
 - Status field is correctly set based on score thresholds.
@@ -495,7 +485,7 @@ TASK: Final integration testing and deployment preparation.
      d. Spam: "Buy cheap watches at www.spam.com"
      e. Competitor: "We build similar software, curious about your architecture"
    - Verify each lead flows through the complete pipeline.
-   - Confirm correct routing (Discord for a, Gmail for b-e).
+   - Confirm correct routing (Telegram for a, Gmail for b-e).
    - Confirm all 5 rows appear in Supabase with correct scores and status.
    - Confirm dashboard displays all 5 leads in correct order.
 
@@ -527,6 +517,6 @@ VERIFY:
 - Production URL loads landing page correctly.
 - Form submission works in production.
 - Dashboard accessible and showing live data.
-- Discord alerts fire in production.
+- Telegram alerts fire in production.
 - No secrets exposed in client-side code.
 ```

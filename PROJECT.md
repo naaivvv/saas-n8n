@@ -30,7 +30,7 @@
 
 ### Phase 4: Automated Triage & Routing
 * **Conditional Routing:** An n8n **Switch Node** reads the numerical `intent_score` dynamically from the upstream LLM output.
-* **High Intent Path (Score > 80):** Routes immediately to a Slack or Discord webhook node. It dispatches a priority message to a `#sales-alerts` channel highlighting key account dimensions and the AI reasoning block.
+* **High Intent Path (Score > 80):** Routes immediately to a Slack or Telegram webhook node. It dispatches a priority message to a `#sales-alerts` channel highlighting key account dimensions and the AI reasoning block.
 * **Low Intent Path (Score < 80):** Routes to a Gmail node authenticated over OAuth2 to drop a warm, defensive auto-reply pointing to self-serve developer documentations and lower pricing tiers.
 
 ### Phase 5: The Executive Dashboard

@@ -44,7 +44,7 @@
 │  └──┬────────┬───┘   │
 │     │ YES    │ NO    │
 │     ▼        ▼       │
-│  Discord   Gmail     │
+│ Telegram   Gmail     │
 │  #sales    auto-     │
 │  -alerts   reply     │
 │     │        │       │
@@ -76,7 +76,7 @@
 | Database | **Supabase** (PostgreSQL) | Lead storage, dashboard queries | Free (500 MB) |
 | B2B Enrichment API | **Apollo.io** | Company firmographics lookup | Free tier |
 | LLM / AI Scoring | **Google Gemini 1.5 Flash** | Intent scoring via API | Free tier |
-| Sales Alerts | **Discord** (webhook) or **Slack** | Real-time high-intent notifications | Free |
+| Sales Alerts | **Telegram** (bot) or **Slack** | Real-time high-intent notifications | Free |
 | Email Fallback | **Gmail** (OAuth2 via n8n) | Auto-reply for low-intent leads | Free |
 
 ---
@@ -168,13 +168,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 N8N_WEBHOOK_URL=https://your-n8n-instance.railway.app/webhook/leads
 APOLLO_API_KEY=api_key_xxxxxxxxxxxxxxxxxxxx
 GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxx
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
 ```
 
 **Rules:**
 - `.env` is git-ignored. Always.
 - `NEXT_PUBLIC_*` prefixed vars are exposed to the browser — use only for Supabase anon key and URL.
-- Server-side secrets (Apollo, Gemini, Discord, n8n) must NEVER have `NEXT_PUBLIC_` prefix.
+- Server-side secrets (Apollo, Gemini, Telegram, n8n) must NEVER have `NEXT_PUBLIC_` prefix.
 - Provide a `.env.example` with placeholder values for onboarding.
 
 ---
@@ -207,7 +208,7 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 ### n8n Workflow
 - Export the workflow JSON to `n8n/workflow.json` after every significant change.
 - Use n8n expressions (`{{ }}`) for dynamic data, not Code nodes, unless transformation logic exceeds a single expression.
-- Name every node descriptively: e.g., `Parse Email Domain`, `Apollo Enrichment`, `Gemini Intent Score`, `Route by Score`, `Discord Alert`, `Gmail Fallback`, `Upsert to Supabase`.
+- Name every node descriptively: e.g., `Parse Email Domain`, `Apollo Enrichment`, `Gemini Intent Score`, `Route by Score`, `Telegram Alert`, `Gmail Fallback`, `Upsert to Supabase`.
 
 ---
 
@@ -231,7 +232,7 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 | Form submission | Submit the demo form locally → verify n8n receives the webhook payload |
 | Apollo enrichment | Use a known corporate email (e.g., `test@stripe.com`) → confirm firmographics return |
 | Gemini scoring | Send a high-intent message ("Enterprise deployment for 500 seats") → expect score > 80 |
-| Triage routing | Verify Discord alert fires for high-intent; Gmail auto-reply for low-intent |
+| Triage routing | Verify Telegram alert fires for high-intent; Gmail auto-reply for low-intent |
 | Database sync | Check Supabase table for complete row after full pipeline execution |
 | Dashboard render | Load `/dashboard` → confirm leads appear sorted by `intent_score DESC` |
 | Edge cases | Empty Apollo response, Gemini timeout, malformed JSON output |
@@ -255,7 +256,7 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 | **1** | Core infra: Next.js scaffold, Supabase table, n8n instance | None |
 | **2** | Ingestion: Webhook + Apollo enrichment in n8n | Phase 1 |
 | **3** | AI scoring: Gemini integration + structured output | Phase 2 |
-| **4** | Triage: Switch node → Discord / Gmail routing | Phase 3 |
+| **4** | Triage: Switch node → Telegram / Gmail routing | Phase 3 |
 | **5** | Dashboard: Admin UI fetching from Supabase | Phase 1 (DB) + Phase 4 (data) |
 
 Each phase is independently testable. Do not skip phases. Verify each before proceeding to the next.
