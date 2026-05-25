@@ -17,25 +17,30 @@
         ```
     * An HTTP Request node routes the domain to the **Apollo.io API** to pull critical purchasing indicators: company headcount, vertical/industry, and estimated annual ARR.
 
-### Phase 3: AI Intent Scoring (The Brain)
-* **LLM Integration:** An n8n Advanced AI Node connects via API key to **Google Gemini (Gemini 2.5 Flash)** to maximize speed and token efficiency within the free usage tier.
-* **System Prompt Engineering:** Gemini is configured with a strict persona as a *Senior SaaS Account Executive*. It analyzes the text query against the quantitative corporate profile retrieved from Apollo.io.
-* **Structured Output Validation:** The model is constrained to reply exclusively in a valid minified JSON block matching this exact TypeScript interface:
+### Phase 3: AI Intent Scoring & ICP Fit
+* **LLM Integration:** An n8n HTTP Request node connects via API key to **Google Gemini 3 Flash Preview (gemini-3-flash-preview)** in JSON mode to maximize speed and token efficiency.
+* **System Prompt Engineering & Sanitization:** Gemini acts as a *Senior SaaS Account Executive*. The user input is wrapped in strict XML tags to prevent prompt injection.
+* **Structured Output Validation:** The model is constrained to return a JSON block containing the text intent score and raw reasoning:
     ```json
     {
-      "intent_score": number, // Scale 1 to 100
-      "reasoning_summary": string // Maximum 2 sentences detailing the score choice
+      "text_intent_score": number, // Scale 1 to 100
+      "intent_reasoning": string // Detailed intent reasoning
     }
     ```
+* **ICP Fit & Combined Scoring:**
+  * **ICP Fit Score:** Calculated programmatically based on firmographic data (employee count > 1000 = +40 points, 100-999 = +20 points; Software/Technology industry = +20 points).
+  * **Final Score:** A weighted combination calculated as `final_score = (icp_fit_score * 0.5) + (text_intent_score * 0.5)`.
+  * **Mapping:** `intent_score` is mapped to `final_score` for dashboard sorting, and `reasoning_summary` combines fit details with the text intent reasoning.
 
-### Phase 4: Automated Triage & Routing
-* **Conditional Routing:** An n8n **Switch Node** reads the numerical `intent_score` dynamically from the upstream LLM output.
-* **High Intent Path (Score > 80):** Routes immediately to a Slack or Telegram webhook node. It dispatches a priority message to a `#sales-alerts` channel highlighting key account dimensions and the AI reasoning block.
-* **Low Intent Path (Score < 80):** Routes to a Gmail node authenticated over OAuth2 to drop a warm, defensive auto-reply pointing to self-serve developer documentations and lower pricing tiers.
+### Phase 4: Automated Triage & 3-Tier Routing
+* **Conditional Routing:** An n8n **Switch Node ("Route by Score")** reads the calculated `final_score` and checks domain type.
+* **Tier 1 (Enterprise / Hot - Score >= 80 & Business Domain):** Routes immediately to a Telegram alert bot, dispatching a priority alert to the sales channel. Sets status to `Hot Lead` in DB.
+* **Tier 2 (Mid-Market / Warm - Score >= 50 and < 80 & Business Domain):** Sends a customized Gmail auto-reply referencing the prospect's industry. Sets status to `Nurture` in DB.
+* **Tier 3 (PLG / Cold - Score < 50 or Freemium Domain):** Sends a standard PLG auto-reply recommending the free community edition. Sets status to `PLG` in DB.
 
 ### Phase 5: The Executive Dashboard
-* **Database Syncing:** A final terminal **Supabase node** captures all telemetry (raw inputs, Apollo firmographics, intent score, and reasoning) and upserts them cleanly into the PostgreSQL target table.
-* **The UI Experience:** A secure Next.js administrative dashboard fetches rows back from Supabase sorted conditionally: `ORDER BY intent_score DESC`. Hot leads display clean red telemetry highlights at the top of the operational view.
+* **Database Syncing:** A final **Supabase node** performs an `upsert` matching on the `email` column, updating existing rows or inserting new ones with all raw telemetry (including fit, text intent, and final scores).
+* **The UI Experience:** A secure Next.js administrative dashboard fetches leads from Supabase sorted by `intent_score DESC` (which holds the final combined score).
 
 ---
 
@@ -48,7 +53,7 @@ create table public.leads (
     id uuid default gen_random_uuid() primary key,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     name text not null,
-    email text not null,
+    email text not null constraint leads_email_key unique,
     company_name text,
     company_domain text not null,
     employee_count integer,
@@ -56,6 +61,9 @@ create table public.leads (
     estimated_revenue text,
     original_message text,
     intent_score integer check (intent_score >= 1 and intent_score <= 100),
+    icp_fit_score integer check (icp_fit_score >= 0 and icp_fit_score <= 100),
+    text_intent_score integer check (text_intent_score >= 0 and text_intent_score <= 100),
+    final_score integer check (final_score >= 0 and final_score <= 100),
     reasoning_summary text,
     status text default 'New'::text
 );

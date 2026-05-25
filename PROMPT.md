@@ -51,6 +51,9 @@ Requirements:
        estimated_revenue: string | null;
        original_message: string | null;
        intent_score: number;
+       icp_fit_score: number;
+       text_intent_score: number;
+       final_score: number;
        reasoning_summary: string | null;
        status: string;
      }
@@ -250,7 +253,7 @@ TASK: Add Gemini-based intent scoring to the n8n workflow.
 Add these nodes after the Apollo enrichment:
 
 1. **HTTP Request Node** ("Gemini Intent Score"):
-   - URL: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}
+   - URL: https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={{ $env.GEMINI_API_KEY }}
    - Method: POST
    - Body (JSON):
      ```json

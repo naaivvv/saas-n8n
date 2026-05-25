@@ -26,33 +26,37 @@
 │   n8n Workflow       │  Railway / Render / Docker (self-hosted)
 │   Engine             │
 │                      │
-│  ┌───────────────┐   │
-│  │ Webhook Node  │───┼──▶ Parse domain from email
-│  └───────┬───────┘   │
+│  ┌────────────────┐  │
+│  │  Webhook Node  │──┼──▶ Parse domain from email & check freemium
+│  └───────┬────────┘  │
 │          ▼           │
-│  ┌───────────────┐   │
-│  │ Apollo.io API │───┼──▶ Firmographic enrichment
-│  └───────┬───────┘   │
+│  ┌────────────────┐  │
+│  │ Apollo.io API  │──┼──▶ Firmographic enrichment (for business domains)
+│  └───────┬────────┘  │
 │          ▼           │
-│  ┌───────────────┐   │
-│  │ Gemini Flash  │───┼──▶ Intent scoring (1-100)
-│  └───────┬───────┘   │
+│  ┌────────────────┐  │
+│  │ Gemini 3 Flash │──┼──▶ Text Intent scoring (1-100)
+│  └───────┬────────┘  │
 │          ▼           │
-│  ┌───────────────┐   │
-│  │ Switch Node   │   │
-│  │ score > 80?   │   │
-│  └──┬────────┬───┘   │
-│     │ YES    │ NO    │
-│     ▼        ▼       │
-│ Telegram   Gmail     │
-│  #sales    auto-     │
-│  -alerts   reply     │
-│     │        │       │
-│     └───┬────┘       │
-│         ▼            │
-│  ┌───────────────┐   │
-│  │ Supabase Node │───┼──▶ Upsert full telemetry
-│  └───────────────┘   │
+│  ┌────────────────┐  │
+│  │ Calculate      │──┼──▶ Combines ICP Fit & Text Intent scores
+│  │ Combined Score │  │
+│  └───────┬────────┘  │
+│          ▼           │
+│  ┌────────────────┐  │
+│  │ Switch Node    │  │
+│  │ Route by Score │  │
+│  └──┬────┬────┬───┘  │
+│Tier1│Tier2│Tier3     │ (Tier1 >= 80, Tier2 >= 50, Tier3 < 50)
+│     ▼    ▼    ▼      │
+│ Telegram Gmail Gmail │
+│  (Hot)  (Warm) (PLG) │
+│     │    │    │      │
+│     └────┼────┘      │
+│          ▼           │
+│  ┌────────────────┐  │
+│  │ Supabase Node  │──┼──▶ Upsert lead telemetry using email as key
+│  └────────────────┘  │
 └─────────────────────┘
          │
          ▼
@@ -75,7 +79,7 @@
 | Workflow Hosting | **Railway** or **Render** | Persistent container hosting | Free tier |
 | Database | **Supabase** (PostgreSQL) | Lead storage, dashboard queries | Free (500 MB) |
 | B2B Enrichment API | **Apollo.io** | Company firmographics lookup | Free tier |
-| LLM / AI Scoring | **Google Gemini 2.5 Flash** | Intent scoring via API | Free tier |
+| LLM / AI Scoring | **Google Gemini 3 Flash Preview (gemini-3-flash-preview)** | Intent scoring via API | Free tier |
 | Sales Alerts | **Telegram** (bot) or **Slack** | Real-time high-intent notifications | Free |
 | Email Fallback | **Gmail** (OAuth2 via n8n) | Auto-reply for low-intent leads | Free |
 
@@ -142,16 +146,19 @@ saas-n8n/
 | `id` | `uuid` | PK, auto-generated | `gen_random_uuid()` |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | UTC |
 | `name` | `text` | NOT NULL | From form |
-| `email` | `text` | NOT NULL | From form |
+| `email` | `text` | NOT NULL, UNIQUE | From form (unique key for upserts) |
 | `company_name` | `text` | Nullable | From Apollo |
 | `company_domain` | `text` | NOT NULL | Parsed from email |
 | `employee_count` | `integer` | Nullable | From Apollo |
 | `industry` | `text` | Nullable | From Apollo |
 | `estimated_revenue` | `text` | Nullable | From Apollo |
 | `original_message` | `text` | Nullable | From form |
-| `intent_score` | `integer` | CHECK 1–100 | From Gemini |
-| `reasoning_summary` | `text` | Nullable | From Gemini |
-| `status` | `text` | Default `'New'` | Workflow state |
+| `intent_score` | `integer` | CHECK 1–100 | Final score mapped from `final_score` (for dashboard compatibility) |
+| `icp_fit_score` | `integer` | CHECK 0–100 | Point-based score calculated from corporate firmographics |
+| `text_intent_score` | `integer` | CHECK 0–100 | Gemini-evaluated buyer intent score from raw message |
+| `final_score` | `integer` | CHECK 0–100 | Combined score: `(icp_fit_score * 0.5) + (text_intent_score * 0.5)` |
+| `reasoning_summary` | `text` | Nullable | Synthesized summary: fit details + Gemini intent explanation |
+| `status` | `text` | Default `'New'` | Workflow state: `Hot Lead` (>=80), `Nurture` (>=50), `PLG` (<50) |
 
 **Index:** `idx_leads_intent_score` on `(intent_score DESC)` — optimized for dashboard sorting.
 
@@ -208,7 +215,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 ### n8n Workflow
 - Export the workflow JSON to `n8n/workflow.json` after every significant change.
 - Use n8n expressions (`{{ }}`) for dynamic data, not Code nodes, unless transformation logic exceeds a single expression.
-- Name every node descriptively: e.g., `Parse Email Domain`, `Apollo Enrichment`, `Gemini Intent Score`, `Route by Score`, `Telegram Alert`, `Gmail Fallback`, `Upsert to Supabase`.
+- Name every node descriptively: e.g., `Parse Email Domain`, `Set Default Values`, `Apollo Enrichment`, `Normalize Enrichment`, `Calculate ICP Fit Score`, `Gemini Intent Score`, `Calculate Final Combined Score`, `Route by Score`, `Telegram Alert — Hot Lead`, `Gmail — Warm Auto-Reply`, `Gmail — PLG Auto-Reply`, `Set Status`, `Upsert Lead to Database`.
 
 ---
 
@@ -229,13 +236,13 @@ TELEGRAM_CHAT_ID=your_chat_id
 
 | What | How |
 |---|---|
-| Form submission | Submit the demo form locally → verify n8n receives the webhook payload |
-| Apollo enrichment | Use a known corporate email (e.g., `test@stripe.com`) → confirm firmographics return |
-| Gemini scoring | Send a high-intent message ("Enterprise deployment for 500 seats") → expect score > 80 |
-| Triage routing | Verify Telegram alert fires for high-intent; Gmail auto-reply for low-intent |
-| Database sync | Check Supabase table for complete row after full pipeline execution |
-| Dashboard render | Load `/dashboard` → confirm leads appear sorted by `intent_score DESC` |
-| Edge cases | Empty Apollo response, Gemini timeout, malformed JSON output |
+| Form submission | Submit the demo form locally → verify n8n receives the webhook payload immediately (async response) |
+| Apollo enrichment | Use a known corporate email (e.g., `test@stripe.com`) → confirm firmographics return; freemium email (e.g., `test@gmail.com`) → bypasses Apollo |
+| Gemini scoring | Send a high-intent message ("Enterprise deployment for 500 seats") → expect high `text_intent_score` |
+| Triage routing | Verify Telegram alert fires for Hot leads (score >= 80); Gmail Warm Reply for Nurture (score >= 50); Gmail PLG Reply for PLG/Cold (score < 50 or freemium) |
+| Database sync | Check Supabase table for complete row (including ICP, text, and final scores) and verify upsert on duplicate email |
+| Dashboard render | Load `/dashboard` → confirm leads appear sorted by `intent_score DESC` (which holds the final score) |
+| Edge cases | Empty Apollo response, Gemini timeout, prompt injection attempt, duplicate email submissions |
 
 ---
 
